@@ -1,16 +1,28 @@
-# Ignorar ambiente virtual
+# Ambiente virtual
 venv/
 
-# Arquivos de cache do Python
-*.pyc
+# Arquivos do sistema
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Arquivos de configuração do editor
+# Banco de dados local
+*.db
+
+# Arquivos temporários
+*.log
+*.tmp
+
+# Configurações do editor
 .vscode/
 .idea/
 
-# Sistema operacional
-Thumbs.db
+# Arquivos de imagem gerados
+*.png
+*.jpg
+*.jpeg
+
+# Arquivos do sistema operacional
 .DS_Store
-dist/
-dist/
+Thumbs.db
