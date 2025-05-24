@@ -1,28 +1,18 @@
-# Ambiente virtual
-venv/
-
-# Arquivos do sistema
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 
-# Banco de dados local
+# SQLite
 *.db
 
-# Arquivos temporários
-*.log
-*.tmp
+# Venv
+venv/
+.env
 
-# Configurações do editor
+# IDEs
 .vscode/
 .idea/
 
-# Arquivos de imagem gerados
-*.png
-*.jpg
-*.jpeg
-
-# Arquivos do sistema operacional
+# OS
 .DS_Store
 Thumbs.db
