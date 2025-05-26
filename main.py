@@ -1,4 +1,5 @@
 from database.database_handler import DatabaseHandler
+from utils.qrcode_generator import gerar_qrcode
 
 def menu():
     print("\nControle de Acesso - Menu")
@@ -13,27 +14,32 @@ def main():
 
     while True:
         menu()
-        opcao = input("Escula uma opção: ")
+        opcao = input("Escolha uma opção: ")
 
         if opcao == '1':
+            nome = input("Digite o nome da pessoa: ")
             valor = input("Digite a placa (ex: ABC12345): ").upper()
-            db.add_autorizados('placa', valor)
+            db.add_autorizados('placa', valor, nome)
 
         elif opcao == '2':
-            valor = input("Digite o QR Code: ")
-            db.add_autorizados('qrcode', valor)
+            nome = input("Digite o nome da pessoa: ")
+            valor = input("Digite o conteúdo do QR Code: ")
+            db.add_autorizados('qrcode', valor, nome)
+            gerar_qrcode(valor, f"{valor}_qrcode.png")
 
         elif opcao == '3':
             valor = input("Digite a placa para verificação: ").upper()
-            if db.verificar_autorizado('placa', valor):
-                print("Autorizado!")
+            resultado = db.verificar_autorizado('placa', valor)
+            if resultado:
+                print(f"Autorizado! Proprietário: {resultado[0]}")
             else:
                 print("Placa NÃO autorizada!")
 
         elif opcao == '4':
             valor = input("Digite o QR Code para verificação: ")
-            if db.verificar_autorizado('qrcode', valor):
-                print("QR Code AUTORIZADO!")
+            resultado = db.verificar_autorizado('qrcode', valor)
+            if resultado:
+                print(f"QR Code AUTORIZADO! Proprietário: {resultado[0]}")
             else:
                 print("QR Code NÃO autorizado!")
 

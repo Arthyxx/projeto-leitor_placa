@@ -13,35 +13,37 @@ class DatabaseHandler:
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS autorizados (
-                       id INTEGER PRIMARY KEY AUTOINCREMENT,
-                       tipo TEXT NOT NULL,
-                       valor TEXT NOT NULL UNIQUE
-                       )
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo TEXT NOT NULL,
+                valor TEXT NOT NULL UNIQUE,
+                nome TEXT NOT NULL
+            )
         ''')
         conn.commit()
         conn.close()
 
-    def add_autorizados(self, tipo, valor):
+    def add_autorizados(self, tipo, valor, nome):
         conn = self.connect()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT INTO autorizados (tipo, valor)
-                VALUES (?, ?)  
-            ''', (tipo, valor))
+                INSERT INTO autorizados (tipo, valor, nome)
+                VALUES (?, ?, ?)
+            ''', (tipo, valor, nome))
             conn.commit()
-            print(f"{tipo.capitalize()} '{valor}' cadastrado com sucesso.")
+            print(f"{tipo.capitalize()} '{valor}' cadastrado com sucesso para {nome}.")
 
         except sqlite3.IntegrityError:
             print(f"{tipo.capitalize()} '{valor}' já está cadastrado.")
         conn.close()
 
+
     def verificar_autorizado(self, tipo, valor):
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT * FROM autorizados WHERE tipo = ? AND valor = ?
+            SELECT nome FROM autorizados WHERE tipo = ? AND valor = ?
         ''', (tipo, valor))
         resultado = cursor.fetchone()
         conn.close()
-        return resultado is not None
+        return resultado  # retorna None se não achou ou (nome,)
