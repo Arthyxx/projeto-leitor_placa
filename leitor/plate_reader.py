@@ -15,8 +15,8 @@ def main():
     db = DatabaseHandler()
     
     # Carrega os dois modelos
-    modelo_placa = YOLO('treino/placa/placa.pt')         # Ex: detecta a placa completa
-    modelo_caracteres = YOLO('treino/caracter/caracter.pt')  # Ex: detecta letras/números da placa
+    modelo_placa = YOLO('treino/placa/placa.pt')         # Modelo para detectar a placa completa
+    modelo_caracteres = YOLO('treino/caracter/caracter.pt')  # Modelo para detectar letras/números da placa
 
     cap = cv2.VideoCapture(0)  # Ajuste a fonte da câmera
 
@@ -39,7 +39,7 @@ def main():
                 conf = float(box.conf[0])
                 xyxy = box.xyxy[0].cpu().numpy().astype(int)
 
-                if cls == 0:  # Ajuste conforme a classe de placa
+                if cls == 0:  # Ajuste conforme a classe da placa
                     x1, y1, x2, y2 = xyxy
                     placa_bbox = (x1, y1, x2, y2)
                     cv2.rectangle(img_with_boxes, (x1, y1), (x2, y2), (0, 255, 255), 2)
@@ -56,10 +56,10 @@ def main():
             for result in resultados_chars:
                 for box in result.boxes:
                     char_cls = int(box.cls[0])
+                    char_label = modelo_caracteres.names[char_cls]  # Corrigido aqui
                     xyxy_char = box.xyxy[0].cpu().numpy().astype(int)
                     x_c1, y_c1, x_c2, y_c2 = xyxy_char
                     centro_x = (x_c1 + x_c2) // 2
-                    char_label = box.cls_name  # Requer que o modelo esteja treinado com nomes
 
                     caracteres.append({'bbox': (x_c1, y_c1, x_c2, y_c2), 'centro_x': centro_x, 'char': char_label})
 
