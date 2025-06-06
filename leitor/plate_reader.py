@@ -1,115 +1,98 @@
 import cv2
-import easyocr
-import re
-import threading
-import time
-from database.database_handler import DatabaseHandler
+import numpy as np
+from ultralytics import YOLO
+from pyzbar import pyzbar
+from database.database_handler import DatabaseHandler  # ajuste conforme seu projeto
 
-def filtrar_placa(texto):
-    padrao = r'[A-Z]{3}[0-9][A-Z0-9][0-9]{2}'
-    match = re.search(padrao, texto.replace(' ', '').upper())
-    return match.group(0) if match else None
+def verificar_autorizacao(db, tipo, valor):
+    return db.verificar_autorizado(tipo, valor)
 
-class VideoStream:
-    def __init__(self, src=1):
-        self.cap = cv2.VideoCapture(src)
-        self.ret, self.frame = self.cap.read()
-        self.stopped = False
-        self.lock = threading.Lock()
+def desenhar_status(frame, texto, pos, autorizado):
+    cor = (0, 255, 0) if autorizado else (0, 0, 255)
+    cv2.putText(frame, texto, pos, cv2.FONT_HERSHEY_SIMPLEX, 1, cor, 2)
 
-    def start(self):
-        threading.Thread(target=self.update, daemon=True).start()
-        return self
-
-    def update(self):
-        while not self.stopped:
-            ret, frame = self.cap.read()
-            if not ret:
-                self.stop()
-                break
-            with self.lock:
-                self.ret = ret
-                self.frame = frame
-
-    def read(self):
-        with self.lock:
-            if self.frame is None:
-                return False, None
-            return self.ret, self.frame.copy()
-
-
-
-    def stop(self):
-        self.stopped = True
-        self.cap.release()
-
-def ocr_thread_func(vs, db, reader, lock, resultados_ocr, frame_skip=5):
-    frame_count = 0
-    while not vs.stopped:
-        ret, frame = vs.read()
-        if not ret:
-            time.sleep(0.1)
-            continue
-
-        frame_count += 1
-        if frame_count % frame_skip != 0:
-            time.sleep(0.01)
-            continue
-        
-        frame_resized = cv2.resize(frame, (640, 480))
-        frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
-
-        ocr_results = reader.readtext(frame_rgb)
-
-        placas_detectadas = []
-
-        for _, texto, conf_ocr in ocr_results:
-            placa = filtrar_placa(texto)
-            if placa and conf_ocr > 0.5:
-                autorizado = db.verificar_autorizado('placa', placa)
-                placas_detectadas.append((placa, autorizado))
-
-        with lock:
-            resultados_ocr.clear()
-            resultados_ocr.extend(placas_detectadas)
-
-        time.sleep(0.1)
-
-def ler_placa():
+def main():
     db = DatabaseHandler()
-    reader = easyocr.Reader(['pt'], gpu=False)
+    
+    # Carrega os dois modelos
+    modelo_placa = YOLO('treino/placa/placa.pt')         # Ex: detecta a placa completa
+    modelo_caracteres = YOLO('treino/caracter/caracter.pt')  # Ex: detecta letras/números da placa
 
-    vs = VideoStream(src=1).start()
-    lock = threading.Lock()
-    resultados_ocr = []
+    cap = cv2.VideoCapture(0)  # Ajuste a fonte da câmera
 
-    print("Abrindo a câmera... Pressione 'q' para sair.")
-
-    t_ocr = threading.Thread(target=ocr_thread_func, args=(vs, db, reader, lock, resultados_ocr), daemon=True)
-    t_ocr.start()
+    print("Pressione 'q' para sair.")
 
     while True:
-        ret, frame = vs.read()
-        if not ret or frame is None:
-            print("Erro ao capturar o vídeo")
+        ret, frame = cap.read()
+        if not ret:
             break
 
-        with lock:
-            y0 = 30
-            for i, (placa, autorizado) in enumerate(resultados_ocr):
-                cor = (0, 255, 0) if autorizado else (0, 0, 255)
-                status = "AUTORIZADO" if autorizado else "NÃO AUTORIZADO"
-                text = f"{status}: {placa}"
-                cv2.putText(frame, text, (10, y0 + i*30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, cor, 2)
+        resultados_placa = modelo_placa(frame)
 
-        cv2.imshow("Leitor de Placa", frame)
+        placa_bbox = None
+        img_with_boxes = frame.copy()
+
+        # 1. DETECÇÃO DA PLACA
+        for result in resultados_placa:
+            for box in result.boxes:
+                cls = int(box.cls[0])
+                conf = float(box.conf[0])
+                xyxy = box.xyxy[0].cpu().numpy().astype(int)
+
+                if cls == 0:  # Ajuste conforme a classe de placa
+                    x1, y1, x2, y2 = xyxy
+                    placa_bbox = (x1, y1, x2, y2)
+                    cv2.rectangle(img_with_boxes, (x1, y1), (x2, y2), (0, 255, 255), 2)
+                    break  # Assume só uma placa por frame
+
+        # 2. DETECÇÃO DOS CARACTERES DENTRO DA PLACA
+        placa_montada = ''
+        if placa_bbox:
+            x1, y1, x2, y2 = placa_bbox
+            placa_crop = frame[y1:y2, x1:x2]
+            resultados_chars = modelo_caracteres(placa_crop)
+
+            caracteres = []
+            for result in resultados_chars:
+                for box in result.boxes:
+                    char_cls = int(box.cls[0])
+                    xyxy_char = box.xyxy[0].cpu().numpy().astype(int)
+                    x_c1, y_c1, x_c2, y_c2 = xyxy_char
+                    centro_x = (x_c1 + x_c2) // 2
+                    char_label = box.cls_name  # Requer que o modelo esteja treinado com nomes
+
+                    caracteres.append({'bbox': (x_c1, y_c1, x_c2, y_c2), 'centro_x': centro_x, 'char': char_label})
+
+            if caracteres:
+                caracteres_ordenados = sorted(caracteres, key=lambda c: c['centro_x'])
+                placa_montada = ''.join([c['char'] for c in caracteres_ordenados])
+
+                autorizado = verificar_autorizacao(db, 'placa', placa_montada)
+                desenhar_status(img_with_boxes,
+                                f"{'AUTORIZADO' if autorizado else 'NÃO AUTORIZADO'}: {placa_montada}",
+                                (10, 30), autorizado)
+
+        # 3. DETECÇÃO DE QR CODES COM PYZBAR
+        qr_codes = pyzbar.decode(frame)
+
+        for qr in qr_codes:
+            (x, y, w, h) = qr.rect
+            cv2.rectangle(img_with_boxes, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            qr_data = qr.data.decode('utf-8')
+            autorizado_qr = verificar_autorizacao(db, 'qrcode', qr_data)
+
+            desenhar_status(img_with_boxes,
+                            f"{'AUTORIZADO' if autorizado_qr else 'NÃO AUTORIZADO'} QR: {qr_data}",
+                            (x, y - 10), autorizado_qr)
+
+        # 4. EXIBIR
+        cv2.imshow("YOLOv8 - Placas + Caracteres + QRCode", img_with_boxes)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    vs.stop()
+    cap.release()
     cv2.destroyAllWindows()
 
-if __name__ == '__main__':
-    ler_placa()
+if __name__ == "__main__":
+    main()
