@@ -39,6 +39,18 @@ This project was developed as an academic project and focuses on backend logic, 
 ---
 
 ## How to Run
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Arthyxx/projeto-leitor_placa.git
+
+1. Install the required Python dependencies.
+2. Configure the SQLite database with authorized users and license plates.
+3. Connect the system to the Arduino via Ethernet or Wi-Fi.
+4. Run the main Python script.
+
+---
+
+## Future Improvements
+
+- Improve license plate recognition accuracy  
+- Add logging and access history  
+- Implement a web interface for access management  
+- Support additional databases (MySQL/PostgreSQL)  
+- Add authentication and user roles
